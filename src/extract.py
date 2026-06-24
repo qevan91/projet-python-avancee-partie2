@@ -86,7 +86,7 @@ try:
     # Sauvegarde et affichage du graphique
     plt.tight_layout()
     plt.savefig('distribution_paragraphes.png')
-    print("\nLe graphique a été généré et sauvegardé avec succès sous le nom 'distribution_paragraphes.png'.")
+    print("Le graphique a été généré et sauvegardé sous le nom 'distribution_paragraphes.png'.")
 
 except FileNotFoundError:
     print("Erreur : Le fichier spécifié est introuvable. Vérifiez le chemin d'accès.")
