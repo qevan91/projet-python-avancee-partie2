@@ -1,12 +1,11 @@
 import io
-
 import requests
 from PIL import Image, UnidentifiedImageError
 
 # Constantes
 IMAGE_URL = (
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/"
-    "Moby-Dick_p510_illustration.jpg/800px-Moby-Dick_p510_illustration.jpg"
+    "https://upload.wikimedia.org/wikipedia/commons/"
+    "3/36/Moby-Dick_p510_illustration.jpg"
 )
 LOGO_PATH = "logo_nb.png"
 OUTPUT_PATH = "moby_dick_final.jpg"
@@ -18,7 +17,6 @@ class ImageProcessingError(Exception):
     Args:
         message (str): Le message d'erreur expliquant la cause de l'échec.
     """
-
     def __init__(self, message: str):
         super().__init__(message)
 
@@ -40,8 +38,12 @@ def download_image(url: str) -> Image.Image:
 
     # Utilisation du gestionnaire de contexte pour sécuriser la session réseau
     try:
+        # Ajout du User-Agent pour passer la sécurité de Wikimedia
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
         with requests.Session() as session:
-            response = session.get(url, timeout=10)
+            response = session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise ImageProcessingError(f"Erreur réseau lors de la requête : {e}")
@@ -122,7 +124,7 @@ def main():
 
         # Enregistrement du résultat sur le disque
         final_result.save(OUTPUT_PATH)
-        print(f"L'image combinée a été générée")
+        print(f"L'image combinée a été générée avec succès sous le nom '{OUTPUT_PATH}'.")
 
     except ImageProcessingError as e:
         print(f"L'opération a été interrompue : {e}")
