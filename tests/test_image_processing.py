@@ -3,13 +3,10 @@ from unittest.mock import patch, MagicMock
 
 from PIL import Image
 
-# Import du module à tester (en assumant que le répertoire racine est bien
-# inclus dans le PYTHONPATH lors du lancement des tests)
-from src.image_processing import (
-    crop_and_resize,
-    download_image,
-    ImageProcessingError
-)
+# Import du module à tester
+from src.image_processing import crop_and_resize
+from src.image_processing import download_image
+from src.image_processing import ImageProcessingError
 
 
 class TestImageProcessing(unittest.TestCase):

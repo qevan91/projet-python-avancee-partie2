@@ -1,10 +1,3 @@
-"""Module de génération de rapports automatisés au format Word.
-
-Ce script extrait les métriques du texte de Moby Dick, récupère les images
-générées par les étapes précédentes du pipeline, puis compile le tout dans
-un document .docx professionnel.
-"""
-
 import os
 import re
 from typing import Dict, Union
@@ -13,7 +6,7 @@ from docx import Document
 from docx.shared import Inches
 
 
-# Définition des constantes globales (PEP 8)
+# Définition des constantes globales
 CHEMIN_TEXTE = "data/Moby_Dick_Or_The_Whale_by_Herman_Melville.txt"
 CHEMIN_IMAGE_TITRE = "data/image_finale.jpg"
 CHEMIN_GRAPHIQUE = "distribution_paragraphes.png"
@@ -122,7 +115,7 @@ def generer_rapport_word(
 
     document = Document()
 
-    # --- Page de titre ---
+    # Page de titre
     titre = document.add_heading(level=0)
     run_titre = titre.add_run(TITRE_LIVRE)
     run_titre.font.bold = True
@@ -141,7 +134,7 @@ def generer_rapport_word(
     # Saut de page pour la seconde section
     document.add_page_break()
 
-    # --- Page de Graphique ---
+    # Page de Graphique
     document.add_heading("Distribution des longueurs des paragraphes", level=1)
     document.add_picture(CHEMIN_GRAPHIQUE, width=Inches(5.5))
 
