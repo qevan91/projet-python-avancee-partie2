@@ -1,133 +1,167 @@
 import io
-import requests
-from PIL import Image, UnidentifiedImageError
+import os
 
-# Constantes
+import requests
+from PIL import Image, UnidentifiedImageError, ImageDraw
+
+# Constantes codées en dur selon les spécifications
 IMAGE_URL = (
     "https://upload.wikimedia.org/wikipedia/commons/"
-    "3/36/Moby-Dick_p510_illustration.jpg"
+    "7/7b/Moby_Dick_p510_illustration.jpg"
 )
-LOGO_PATH = "logo_nb.png"
-OUTPUT_PATH = "moby_dick_final.jpg"
+LOGO_PATH = "data/logo.png"
+OUTPUT_PATH = "data/image_finale.jpg"
 
 
 class ImageProcessingError(Exception):
-    """Exception personnalisée levée pour les erreurs de traitement d'image.
+    """Exception personnalisée pour les erreurs de traitement d'image.
 
-    Args:
-        message (str): Le message d'erreur expliquant la cause de l'échec.
+    Permet de distinguer nos erreurs métiers des exceptions standards.
     """
-    def __init__(self, message: str):
+
+    def __init__(self, message: str) -> None:
+        """Initialise l'exception avec un message spécifique.
+
+        Args:
+            message: Le texte explicatif de l'erreur rencontrée.
+        """
         super().__init__(message)
 
 
 def download_image(url: str) -> Image.Image:
-    """Télécharge une image depuis une URL donnée.
+    """Télécharge une image depuis une URL distante en mémoire.
 
     Args:
-        url (str): Le lien direct vers l'image.
+        url: L'URL directe vers l'image à télécharger.
 
     Returns:
-        Image.Image: L'objet image Pillow téléchargé et chargé en mémoire.
+        L'image chargée sous forme d'objet PIL.Image.
 
     Raises:
-        ImageProcessingError: Si l'URL est invalide ou le réseau échoue.
+        ImageProcessingError: En cas d'échec réseau ou si le contenu
+            téléchargé n'est pas une image valide.
     """
-    if not url.startswith("http"):
-        raise ImageProcessingError("L'URL fournie doit commencer par 'http'.")
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
 
-    # Utilisation du gestionnaire de contexte pour sécuriser la session réseau
     try:
-        # Ajout du User-Agent pour passer la sécurité de Wikimedia
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-        with requests.Session() as session:
-            response = session.get(url, headers=headers, timeout=10)
+        with requests.get(
+                url, headers=headers, stream=True, timeout=10
+        ) as response:
             response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise ImageProcessingError(f"Erreur réseau lors de la requête : {e}")
+            content = response.content
+    except requests.RequestException as e:
+        raise ImageProcessingError(f"Échec du téléchargement : {e}")
 
-    # Portée try/except très réduite, isolant uniquement l'ouverture Pillow
     try:
-        image_data = io.BytesIO(response.content)
-        image = Image.open(image_data)
+        image = Image.open(io.BytesIO(content))
         image.load()
         return image
     except UnidentifiedImageError:
-        raise ImageProcessingError("Les données ne sont pas une image valide.")
+        raise ImageProcessingError(
+            "Le contenu récupéré n'est pas une image lisible."
+        )
 
 
-def process_and_merge_images(
-        base_img: Image.Image, logo_path: str
-) -> Image.Image:
-    """Recadre, redimensionne et incruste un logo sur l'image de base.
+def crop_and_resize(image: Image.Image) -> Image.Image:
+    """Recadre l'image de 10% sur les bords, puis la redimensionne.
 
     Args:
-        base_img (Image.Image): L'image principale téléchargée.
-        logo_path (str): Le chemin vers l'image du logo sur le disque.
+        image: L'objet image source à manipuler.
 
     Returns:
-        Image.Image: La nouvelle image combinée et traitée.
+        Une nouvelle instance d'image recadrée et redimensionnée.
+    """
+    width, height = image.size
+
+    left = int(width * 0.1)
+    top = int(height * 0.1)
+    right = int(width * 0.9)
+    bottom = int(height * 0.9)
+
+    cropped_image = image.crop((left, top, right, bottom))
+
+    target_size = (800, 600)
+    resized_image = cropped_image.resize(target_size)
+
+    return resized_image
+
+
+def apply_logo(base_image: Image.Image, logo_path: str) -> Image.Image:
+    """Superpose un logo pivoté sur l'image de base.
+
+    Args:
+        base_image: L'image principale qui servira de fond.
+        logo_path: Le chemin local vers le fichier image du logo.
+
+    Returns:
+        L'image composite finale avec le logo intégré.
 
     Raises:
-        ImageProcessingError: Si le fichier du logo est introuvable.
+        ImageProcessingError: Si le fichier logo est introuvable ou illisible.
     """
-    assert base_img is not None, "L'image de base ne doit pas être nulle."
-
-    # Suppression de 10% des bordures
-    width, height = base_img.size
-    crop_box = (
-        int(width * 0.1),
-        int(height * 0.1),
-        int(width * 0.9),
-        int(height * 0.9)
-    )
-    cropped_img = base_img.crop(crop_box)
-
-    # Redimensionnement à une taille standard arbitraire
-    resized_img = cropped_img.resize((600, 400))
-
-    # Chargement, rotation et incrustation du logo
     try:
         with Image.open(logo_path) as logo:
-            logo.load()
-
-            # Conversion stricte en noir et blanc et rotation
+            # Conversion explicite en niveaux de gris (L) pour le noir et blanc
             bw_logo = logo.convert("L")
-            rotated_logo = bw_logo.rotate(45, expand=True)
 
-            # Redimensionnement proportionnel du logo pour l'incrustation
-            rotated_logo.thumbnail((150, 150))
+            # Création d'un masque transparent pour la rotation
+            rgba_logo = bw_logo.convert("RGBA")
+            rotated_logo = rgba_logo.rotate(45, expand=True)
 
-            # Calcul des coordonnées pour un placement en bas à droite
-            pos_x = resized_img.width - rotated_logo.width - 20
-            pos_y = resized_img.height - rotated_logo.height - 20
+            composite = base_image.copy()
+            position_x = 50
+            position_y = 50
 
-            # Utilisation de copy() pour préserver l'image source intacte
-            final_img = resized_img.copy()
-            final_img.paste(rotated_logo, (pos_x, pos_y))
+            # On utilise le canal alpha du logo pivoté comme masque de collage
+            composite.paste(
+                rotated_logo,
+                (position_x, position_y),
+                rotated_logo
+            )
 
-            return final_img
-
+            return composite
     except FileNotFoundError:
-        raise ImageProcessingError(f"Logo introuvable au chemin : {logo_path}")
+        raise ImageProcessingError(f"Le fichier logo est absent: {logo_path}")
+    except OSError as e:
+        raise ImageProcessingError(f"Erreur de lecture du logo: {e}")
 
 
-def main():
-    """Exécute la séquence principale de téléchargement et traitement."""
-    print("Début du traitement des images")
+def _generate_mock_logo(path: str) -> None:
+    """Génère un logo temporaire en noir et blanc si manquant sur le disque."""
 
+    # Création d'une image carrée de 100x100 en mode niveaux de gris (L)
+    img = Image.new("L", (100, 100), color=0)# Fond noir (0), dessin d'un carré blanc (255) au centre
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([25, 25, 75, 75], fill=255)
+    img.save(path)
+
+
+def main() -> None:
+    """Orchestre les opérations de téléchargement et de traitement."""
     try:
-        img_moby_dick = download_image(IMAGE_URL)
-        final_result = process_and_merge_images(img_moby_dick, LOGO_PATH)
+        # Si pas de logo on en crée un automatiquement
+        if not os.path.exists(LOGO_PATH):
+            print(f"{LOGO_PATH} n'existe pas. Génération d'un logo de test")
+            _generate_mock_logo(LOGO_PATH)
 
-        # Enregistrement du résultat sur le disque
-        final_result.save(OUTPUT_PATH)
-        print(f"L'image combinée a été générée avec succès sous le nom '{OUTPUT_PATH}'.")
+        # Déroulement du script
+        source_image = download_image(IMAGE_URL)
+        formatted_image = crop_and_resize(source_image)
+        final_image = apply_logo(formatted_image, LOGO_PATH)
 
-    except ImageProcessingError as e:
-        print(f"L'opération a été interrompue : {e}")
+        final_image.save(OUTPUT_PATH)
+        print(f"L'image finale est sauvegardée : {OUTPUT_PATH}")
+
+    except ImageProcessingError as custom_error:
+        print(f"Opération interrompue : {custom_error}")
+    except Exception as unexpected_error:
+        print(f"Erreur inattendue du système : {unexpected_error}")
 
 
 if __name__ == "__main__":
